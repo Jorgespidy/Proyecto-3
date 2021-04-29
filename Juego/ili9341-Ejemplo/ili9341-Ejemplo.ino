@@ -32,23 +32,18 @@
 int DPINS[] = {PB_0, PB_1, PB_2, PB_3, PB_4, PB_5, PB_6, PB_7};  
 const int P1_UP = PA_3;
 const int P1_DOWN = PA_2;
-const int P2_UP = PE_2;
-const int P2_DOWN = PE_3;
-const uint8_t P1_H = 7;
+const int P2_UP = PF_4;
+const int P2_DOWN = PF_0;
+const uint8_t P1_H = 20;
 int maxscore = 8;
 int p2score = 0;
 int p1score = 0;
-const uint8_t p2x=300;
+const uint8_t p1x=235;
 uint8_t p1y = 110;
-const uint8_t p1x=15;
+const uint8_t p2x=15;
 uint8_t p2y = 110;
-uint8_t ballx = 100, bally = 32;
-uint8_t b_dirx = 1, b_diry = 1;
-unsigned long update;
-unsigned long playerUpdate;
-const unsigned long playerRATE = 1;
-const unsigned long ballRATE = 1;
-boolean standby = true;
+uint16_t ballx = 50, bally = 80;
+uint16_t b_dirx = 1, b_diry = 1;
 boolean reset_game = true;
 //*********************************************
 // Functions Prototypes
@@ -71,8 +66,8 @@ void LCD_Sprite(int x, int y, int width, int height, unsigned char bitmap[],int 
 void setup() {
   pinMode(P1_UP, INPUT);
   pinMode(P1_DOWN, INPUT);
-  pinMode(P2_UP, INPUT);
-  pinMode(P2_DOWN, INPUT);
+  pinMode(P2_UP, INPUT_PULLUP);
+  pinMode(P2_DOWN, INPUT_PULLUP);
   SysCtlClockSet(SYSCTL_SYSDIV_2_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
   Serial.begin(9600);
   GPIOPadConfigSet(GPIO_PORTB_BASE, 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, GPIO_STRENGTH_8MA, GPIO_PIN_TYPE_STD_WPU);
@@ -114,20 +109,15 @@ void setup() {
   delay(200);
   LCD_Clear(0xF800);
   delay(200);
-  unsigned long start = millis();
   LCD_Clear(0x0);
-  Rect(10,10,300,220,0xffff);
-  while(millis() - start < 2000);
-  update = millis();
-  playerUpdate = update;
-  ballx = random(0, 15);
-  bally = random(20,30);
+  Rect(10,10,250,220,0xffff);
+  ballx = random(15, 50);
+  bally = random(100,120);
 }
 //*********************************************
 // Loop Infinito
 //*********************************************
 void loop() {
-unsigned long time = millis();
 static bool up = false;
 static bool down = false;
 static bool up2 = false;
@@ -138,23 +128,23 @@ up2 |= (digitalRead (P2_UP) == HIGH);
 down2 |= (digitalRead (P2_DOWN) == HIGH);
 if (reset_game)
 {
-  ballx = random(0,15);
+  ballx = random(100,150);
   bally = random(20,30);
   do
   {
-   b_dirx = random(-1, 2);
+   b_dirx = random(-1, 3);
   }while(b_dirx==0);
   do
   {
-  b_diry = random(-1,2);
+  b_diry = random(-1,3);
   }while(b_diry==0);
   
   reset_game =false;
 }
-if(time > update && standby){
+
   uint8_t updateX = ballx + b_dirx;
   uint8_t updateY = bally + b_diry;
-  if(updateX == 10)
+  if(updateX == p1x - 10)
   {
     p1score++;
     if(p1score ==maxscore)
@@ -166,7 +156,7 @@ if(time > update && standby){
       //showScore();
     }
   }
-  if(updateX = 246)
+  if(updateX == p1x + 10)
   {
     p2score++;
     if(p2score==maxscore)
@@ -178,72 +168,75 @@ if(time > update && standby){
       //showScore();
     }
   }
-  if (updateY ==10 || updateY==220) {       //limita los topes en el eje Y
+  if (updateY ==10 || updateY==215) {       //limita los topes en el eje Y
     //ponemos sonido de topar en vertical
     b_diry = -b_diry;
     updateY +=  b_diry;
     
   }
-  if(updateX == p2x
+  if(updateX == p2x+15
   && updateY >= p2y
-  && updateY <= p2y + 32)
+  && updateY <= p2y+50)
   {
     //sonido de topar con la raqueta del enemigo
     b_dirx = -b_dirx;
-    updateX += b_dirx + b_dirx;
+    updateX += 2 * b_dirx;
   }
   if(updateX == p1x
   && updateY >= p1y
-  && updateY <= p1y + P1_H)
+  && updateY <= p1y +50)
   {
     //sonido de topar con la  raqueta del jugador
     b_dirx = -b_dirx;
-    updateX += b_dirx + b_dirx;
+    updateX +=2 * b_dirx;
   }
-  //FillRect(ballx, bally, 8,8, 0x000);
-  //FillRect(updateX, updateY, 2, 2, 0xFFFF);
+  
   LCD_Bitmap(updateX, updateY, 8, 8, ball);
   H_line(updateX, updateY+8, 8, 0x00);
   H_line(updateX, updateY, 8, 0x00);
+  V_line(updateX, updateY, 8, 0x00);
+  V_line(updateX+8, updateY, 8, 0x00);
+  
   ballx=updateX;
   bally=updateY;
-  update +=ballRATE; 
-  }
-  if(time > playerUpdate && standby) {
-    playerUpdate += playerRATE;
+
+
     
     
     if(up2){
-      H_line(p1x, p2y+32, P1_H, 0x00); // subir player 2
-      p2y-=1;
+      H_line(p2x, p2y+50, P1_H, 0x00); // subir player 2
+      H_line(p2x, p2y+49, P1_H, 0x00);
+      p2y-=2;
        
     }
     if(down2){
-      H_line (p1x, p2y-1, P1_H, 0x00);// borra estela al bajar player 2
-      p2y+=1;
+      H_line (p2x, p2y-1, P1_H, 0x00);// borra estela al bajar player 2
+      p2y+=2;
     }
     up2 = down2 = false;
     if(p2y <15) p2y = 15;
-    if(p2y + P1_H > 200) p2y = 200 - P1_H;
+    if(p2y + P1_H > 195) p2y = 195 - P1_H;
     
     
     if (up) {
-      H_line(p2x+250, p1y+32, P1_H, 0x00); // borra rastro al subir player 1
-      p1y -= 1;
+      H_line(p1x, p1y+50, P1_H, 0x00); // borra rastro al subir player 1
+      H_line(p1x, p1y+49, P1_H, 0x00);
+      p1y -= 2;
     }
     if(down){
-      H_line(p2x+250, p1y, P1_H, 0x00);
-      p1y += 1;
+      H_line(p1x, p1y, P1_H, 0x00);
+      H_line(p1x, p1y-1, P1_H, 0x00);
+      p1y += 2;
     }
     up = down = false;
     if(p1y <15) p1y = 15;
-    if(p1y + P1_H >200) p1y = 200 - P1_H;
-    //H_line (p1x, p2y, P1_H, 0xFFE0);
+    if(p1y + P1_H >195) p1y = 195 - P1_H;
+    
     
    
-  }
-LCD_Bitmap(15, p2y, P1_H, 32, player);
-LCD_Bitmap(295, p1y, P1_H, 32, player2);
+
+LCD_Bitmap(p2x, p2y, P1_H, 50, raqueta2);
+LCD_Bitmap(p1x, p1y, P1_H, 50, raqueta1);
 }
 
 
