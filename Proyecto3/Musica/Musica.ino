@@ -24,7 +24,7 @@ int state1 = 0;
 int buzzerPin = 37;
 
 //bandera
-int flag = 1;
+int flag = 0;
 
 //  PARA CANCION INICIAL
 int melody1[] = {
@@ -69,29 +69,32 @@ int noteDurations2[] = {
 
 void setup() 
 {
+  Serial.begin(9600);
+  Serial2.begin(9600);
 pinMode(buzzerPin,OUTPUT);
 pinMode(PUSH1, INPUT_PULLUP);
 
-// -------------- TOCA LA CANCION INICIAL UNA VEZ -----------------------
-for (int thisNote = 0; thisNote < 80; thisNote++) {
 
-    int noteDuration = 1000/noteDurations1[thisNote];
-    if (melody1[thisNote] == 1){}
-    else{
-    tone(buzzerPin, melody1[thisNote],noteDuration);
-    }
-   
-    int pauseBetweenNotes = noteDuration *1.3;      //delay between pulse
-    delay(pauseBetweenNotes);
-    
-    noTone(buzzerPin);
-}
 
 }
 void loop() 
 {
-  
-  if (flag == 1){
+
+  if (flag == 3){
+  tone(buzzerPin, C6, 500); //toca la nota C6 en un tiempo de 2.
+  flag = 0;
+}
+
+if (flag == 4){
+  tone(buzzerPin, D5, 500); //toca la nota C6 en un tiempo de 2.
+  flag = 0;
+}
+  if (Serial2.available()>0){
+    flag = Serial2.read();
+    Serial.println(flag);
+  }
+
+  if (flag == 2){
   for (int thisNote = 0; thisNote < 77; thisNote++) {
 
     // to calculate the note duration, take one second 
@@ -106,11 +109,40 @@ void loop()
     delay(pauseBetweenNotes);
     
     noTone(buzzerPin);                // stop the tone playing
-    state1 = digitalRead(PUSH1);
-    if (state1 == LOW){
+
+    if (Serial2.available()>0){
+    flag = Serial2.read();
+    }
+    if (flag != 2){
       flag = 0;
       break;
     }
   }
   }
+if (flag == 1){
+// -------------- TOCA LA CANCION INICIAL UNA VEZ -----------------------
+for (int thisNote = 0; thisNote < 80; thisNote++) {
+
+    int noteDuration = 1000/noteDurations1[thisNote];
+    if (melody1[thisNote] == 1){}
+    else{
+    tone(buzzerPin, melody1[thisNote],noteDuration);
+    }
+   
+    int pauseBetweenNotes = noteDuration *1.3;      //delay between pulse
+    delay(pauseBetweenNotes);
+    
+    noTone(buzzerPin);
+    if (Serial2.available()>0){
+    flag = Serial2.read();
+    }
+    if (flag != 1){
+      flag = 0;
+      break;
+    }
+}
+
+}
+  
+  
 }
