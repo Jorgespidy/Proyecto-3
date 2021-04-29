@@ -35,7 +35,7 @@ const int P1_DOWN = PA_2;
 const int P2_UP = PF_4;
 const int P2_DOWN = PF_0;
 const uint8_t P1_H = 20;
-int maxscore = 8;
+int maxscore = 5;
 int p2score = 0;
 int p1score = 0;
 const uint8_t p1x=235;
@@ -45,6 +45,8 @@ uint8_t p2y = 110;
 uint16_t ballx = 50, bally = 80;
 uint16_t b_dirx = 1, b_diry = 1;
 boolean reset_game = true;
+boolean game = false;
+int sonido = 0;
 //*********************************************
 // Functions Prototypes
 //*********************************************
@@ -60,6 +62,9 @@ void FillRect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, un
 void LCD_Print(String text, int x, int y, int fontSize, int color, int background);
 void LCD_Bitmap(unsigned int x, unsigned int y, unsigned int width, unsigned int height, unsigned char bitmap[]);
 void LCD_Sprite(int x, int y, int width, int height, unsigned char bitmap[],int columns, int index, char flip, char offset);
+void showScore(void);
+void gameOver (void);
+void inicio (void);
 //*********************************************
 // Inicialización
 //*********************************************
@@ -70,8 +75,203 @@ void setup() {
   pinMode(P2_DOWN, INPUT_PULLUP);
   SysCtlClockSet(SYSCTL_SYSDIV_2_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
   Serial.begin(9600);
+  Serial2.begin(9600);
   GPIOPadConfigSet(GPIO_PORTB_BASE, 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, GPIO_STRENGTH_8MA, GPIO_PIN_TYPE_STD_WPU);
-  Serial.println("Inicio");
+  //Serial.println("Inicio");
+  inicio();
+
+}
+//*********************************************
+// Loop Infinito
+//*********************************************
+void loop() {
+static bool up = false;
+static bool down = false;
+static bool up2 = false;
+static bool down2 = false;
+up |= (digitalRead (P1_UP)==HIGH);
+down |= (digitalRead (P1_DOWN)==HIGH);
+up2 |= (digitalRead (P2_UP) == HIGH);
+down2 |= (digitalRead (P2_DOWN) == HIGH);
+if (reset_game)
+{
+  ballx = random(100,150);
+  bally = random(20,30);
+  do
+  {
+   b_dirx = random(-1, 1);
+  }while(b_dirx==0);
+  do
+  {
+  b_diry = random(-1,1);
+  }while(b_diry==0);
+  
+  reset_game =false;
+}
+
+ 
+  if (game == false){
+  // ----------------- parte del codigo que se encarga del movimiento de la bola ------------------
+  uint8_t updateX = ballx + b_dirx; // dicta como se mueve la bola en el eje X
+  uint8_t updateY = bally + b_diry; // dicta como se mueve la bola en el eje Y
+  if(updateX == p2x) // detecta si hay una colision con el eje horizontal del lado del jugador 2 (lado izquierdo)
+  {
+    p1score++;
+    reset_game = true;
+    if(p1score == maxscore)
+    {
+      game = true;
+      gameOver();
+    }else
+    {
+      //  AQUI PODRIA SER EL SONIDO DE PERDER
+      showScore();
+    }
+  }
+  if(updateX == p1x + 10) // detecta una colision del lado derecho en la horizontal
+  {
+    p2score++;
+    reset_game = true;
+    if(p2score == maxscore)
+    {
+      game = true;
+      gameOver();
+    }else
+    {
+      // IGUAL A LO DE ARRIBA
+      showScore();
+    }
+  }
+  if (updateY ==10 || updateY==215) {       //limita los topes en el eje Y
+    sonido = 3;
+    Serial2.write (sonido);
+    b_diry = -b_diry;
+    updateY +=  b_diry; // este codigo evita que se vea que la pelota se aplasta contra la pared (hace un rebote visualmente correcto)
+    
+  }
+  if(updateX == p2x+15 // hay que correr 15 pixeles la posicion del jugador 2 en X porque la imagen de la raqueta es muy ancha
+  && updateY >= p2y
+  && updateY <= p2y+55)
+  {
+    sonido = 4; //sonido de topar con la raqueta del enemigo
+    Serial2.write (sonido);
+    b_dirx = -b_dirx;
+    updateX += 2 * b_dirx; // tambien hace un rebote visualmente correcto en el eje X (contra las raquetas)
+  }
+  if(updateX == p1x
+  && updateY >= p1y
+  && updateY <= p1y +55)
+  {
+    sonido = 4; //sonido de topar con la  raqueta del jugador
+    Serial2.write (sonido);
+    b_dirx = -b_dirx;
+    updateX +=2 * b_dirx;
+  }
+  
+  LCD_Bitmap(updateX, updateY, 8, 8, ball); // imprime el recorrido de la pelota
+  H_line(updateX, updateY+8, 8, 0x00); // lineas que borran el rastro que deja la pelota
+  H_line(updateX, updateY, 8, 0x00);
+  V_line(updateX, updateY, 8, 0x00);
+  V_line(updateX+8, updateY, 8, 0x00);
+  
+  ballx=updateX;
+  bally=updateY;
+
+
+  }
+
+
+    if (game == false){
+    // ---------------- movimiento de las raquetas -----------------
+    if(up2){
+      H_line(p2x, p2y+50, P1_H, 0x00); // subir player 2
+      H_line(p2x, p2y+49, P1_H, 0x00);
+      p2y-=2;
+       
+    }
+    if(down2){
+      H_line (p2x, p2y-1, P1_H, 0x00);// borra estela al bajar player 2
+      p2y+=2;
+    }
+    up2 = down2 = false;
+    if(p2y <15) p2y = 15;
+    if(p2y + P1_H > 195) p2y = 195 - P1_H; // topes con las paredes verticales para raqueta 1
+    
+    
+    if (up) {
+      H_line(p1x, p1y+50, P1_H, 0x00); // borra rastro al subir player 1
+      H_line(p1x, p1y+49, P1_H, 0x00);
+      p1y -= 2;
+    }
+    if(down){
+      H_line(p1x, p1y, P1_H, 0x00); // borra rastro al bajar player 1
+      H_line(p1x, p1y-1, P1_H, 0x00); // se hicieron 2 lineas porque al jugador se el aumentan 2 lineas cada vez
+      p1y += 2;     //aumento de 2 lineas cada vez que se presiona el boton
+    }
+    up = down = false;
+    if(p1y <15) p1y = 15;
+    if(p1y + P1_H >195) p1y = 195 - P1_H;  // topes en la vertical para raqueta 2
+    
+    
+   
+
+LCD_Bitmap(p2x, p2y, P1_H, 50, raqueta2); // asi se mueven las raquetas
+LCD_Bitmap(p1x, p1y, P1_H, 50, raqueta1);
+
+
+
+    }
+
+}
+
+
+void showScore(void){
+  
+  String jugador1 = "P1 :";
+  LCD_Print(jugador1, 270, 50, 2, 0xFFFF, 0x00);
+  LCD_Print(String(p1score), 270, 80, 1, 0xFFFF, 0x00);
+
+  String jugador2 = "P2 :";
+  LCD_Print(jugador2, 270, 120, 2, 0xFFFF, 0x00);
+  LCD_Print(String(p2score), 270, 150, 1, 0xFFFF, 0x00);
+}
+
+void gameOver(void){
+  reset_game = false;
+  sonido = 1;
+  Serial2.write (sonido);
+  LCD_Clear(0x0);
+  delay(200);
+  if (p1score > p2score){
+    String ganador1 = "GANO P1!";
+    LCD_Print(String(ganador1), 90, 100, 2, 0xFFFF, 0x00);
+    delay(200);
+    LCD_Print(String(ganador1), 100, 110, 2, 0xFFFF, 0x00);
+    delay(200);
+    LCD_Print(String(ganador1), 110, 120, 2, 0xFFFF, 0x00);
+    delay(2000);
+    p1score = 0;
+    p2score = 0;
+    inicio();
+  }
+  else{
+    String ganador2 = "GANO P2!";
+    LCD_Print(String(ganador2), 90, 100, 2, 0xFFFF, 0x00);
+    delay(200);
+    LCD_Print(String(ganador2), 100, 110, 2, 0xFFFF, 0x00);
+    delay(200);
+    LCD_Print(String(ganador2), 110, 120, 2, 0xFFFF, 0x00);
+    delay(2000);
+    p1score = 0;
+    p2score = 0;
+    inicio();
+  }
+  
+}
+
+  void inicio (void) {
+    sonido = 2;
+    Serial2.write (sonido);
   LCD_Init();
   LCD_Clear(0x00);
   
@@ -94,13 +294,16 @@ void setup() {
   String text6 = "PONG!";
   LCD_Print(text6, 130, 100, 2, 0xFFE0, 0x0);
   String text7 = "Press any button..";
+  sonido = 2;
+  Serial2.write(sonido);
   LCD_Print(text7, 20, 180, 2, 0xFFFF, 0x0);
   while(digitalRead(P1_UP)==HIGH
   && digitalRead(P1_DOWN)==HIGH
-  && digitalRead(P2_UP)==LOW
-  && digitalRead(P2_DOWN)==LOW)
+  && digitalRead(P2_UP)==HIGH
+  && digitalRead(P2_DOWN)==HIGH)
+  
   {
-    delay(100);
+    delay(250);
   }
   
   LCD_Clear(0x001F);
@@ -111,133 +314,14 @@ void setup() {
   delay(200);
   LCD_Clear(0x0);
   Rect(10,10,250,220,0xffff);
-  ballx = random(15, 50);
+  p1score = 0;
+  p2score = 0;
+  ballx = random(100, 150);
   bally = random(100,120);
-}
-//*********************************************
-// Loop Infinito
-//*********************************************
-void loop() {
-static bool up = false;
-static bool down = false;
-static bool up2 = false;
-static bool down2 = false;
-up |= (digitalRead (P1_UP)==HIGH);
-down |= (digitalRead (P1_DOWN)==HIGH);
-up2 |= (digitalRead (P2_UP) == HIGH);
-down2 |= (digitalRead (P2_DOWN) == HIGH);
-if (reset_game)
-{
-  ballx = random(100,150);
-  bally = random(20,30);
-  do
-  {
-   b_dirx = random(-1, 3);
-  }while(b_dirx==0);
-  do
-  {
-  b_diry = random(-1,3);
-  }while(b_diry==0);
   
-  reset_game =false;
-}
-
-  uint8_t updateX = ballx + b_dirx;
-  uint8_t updateY = bally + b_diry;
-  if(updateX == p1x - 10)
-  {
-    p1score++;
-    if(p1score ==maxscore)
-    {
-      //gameOver();
-    }else
-    {
-      //  AQUI PODRIA SER EL SONIDO DE PERDER
-      //showScore();
-    }
-  }
-  if(updateX == p1x + 10)
-  {
-    p2score++;
-    if(p2score==maxscore)
-    {
-      //gameOver();
-    }else
-    {
-      // IGUAL A LO DE ARRIBA
-      //showScore();
-    }
-  }
-  if (updateY ==10 || updateY==215) {       //limita los topes en el eje Y
-    //ponemos sonido de topar en vertical
-    b_diry = -b_diry;
-    updateY +=  b_diry;
-    
-  }
-  if(updateX == p2x+15
-  && updateY >= p2y
-  && updateY <= p2y+50)
-  {
-    //sonido de topar con la raqueta del enemigo
-    b_dirx = -b_dirx;
-    updateX += 2 * b_dirx;
-  }
-  if(updateX == p1x
-  && updateY >= p1y
-  && updateY <= p1y +50)
-  {
-    //sonido de topar con la  raqueta del jugador
-    b_dirx = -b_dirx;
-    updateX +=2 * b_dirx;
-  }
+  game = false;
   
-  LCD_Bitmap(updateX, updateY, 8, 8, ball);
-  H_line(updateX, updateY+8, 8, 0x00);
-  H_line(updateX, updateY, 8, 0x00);
-  V_line(updateX, updateY, 8, 0x00);
-  V_line(updateX+8, updateY, 8, 0x00);
-  
-  ballx=updateX;
-  bally=updateY;
-
-
-    
-    
-    if(up2){
-      H_line(p2x, p2y+50, P1_H, 0x00); // subir player 2
-      H_line(p2x, p2y+49, P1_H, 0x00);
-      p2y-=2;
-       
-    }
-    if(down2){
-      H_line (p2x, p2y-1, P1_H, 0x00);// borra estela al bajar player 2
-      p2y+=2;
-    }
-    up2 = down2 = false;
-    if(p2y <15) p2y = 15;
-    if(p2y + P1_H > 195) p2y = 195 - P1_H;
-    
-    
-    if (up) {
-      H_line(p1x, p1y+50, P1_H, 0x00); // borra rastro al subir player 1
-      H_line(p1x, p1y+49, P1_H, 0x00);
-      p1y -= 2;
-    }
-    if(down){
-      H_line(p1x, p1y, P1_H, 0x00);
-      H_line(p1x, p1y-1, P1_H, 0x00);
-      p1y += 2;
-    }
-    up = down = false;
-    if(p1y <15) p1y = 15;
-    if(p1y + P1_H >195) p1y = 195 - P1_H;
-    
-    
-   
-
-LCD_Bitmap(p2x, p2y, P1_H, 50, raqueta2);
-LCD_Bitmap(p1x, p1y, P1_H, 50, raqueta1);
-}
+  }
 
 
 //*********************************************
